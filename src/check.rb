@@ -67,14 +67,12 @@ class Checkpoint
 
     def start()
         load()
-        puts "start!"
         @data["logs"] << "START at TIME X"
         store()
     end
 
     def end()
         load()
-        puts "end!"
         @data["logs"] << "END at TIME X"
         store()
     end
@@ -84,9 +82,12 @@ class Checkpoint
     end
 
     def store()
-        puts "store!"
-        File.open(@abs_path, 'w+') {|f| f.write(YAML.dump(@data))}
+        File.open(@abs_path, 'w') {|f| f.write(YAML.dump(@data))}
     end
+end
+
+if ARGV.length == 0
+    exit(1)
 end
 
 flags = {"start" => false, "end" => false}
@@ -96,11 +97,6 @@ OptionParser.new do |opt|
     opt.on('-s', '--start') { |o| flags["start"] = true }
     opt.on('-e', '--end') { |o| flags["end"] = true }
 end.parse!
-
-if ARGV.length == 0
-    puts opt.banner
-    exit(1)
-end
 
 is_repo = is_repository(".")
 abs_path = File.join(".", DEFAULT_FNAME)
