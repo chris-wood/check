@@ -1,296 +1,121 @@
-require 'git'
-require 'json'
-require 'logger'
-require 'digest'
+require 'optparse'
 require 'yaml'
-require 'pathname'
-require 'filewatcher'
-require 'net/https'
 
 DEFAULT_FNAME = ".check"
 
-class CheckpointMaster
-    def initialize(fname)
-        abs_path = File.join(Dir.home, fname)
-        if not File.exists?(abs_path) then
-            File.new(abs_path, File::CREAT|File::TRUNC|File::RDWR, 0644)
-            File.open(abs_path, 'w+') {|f| f.write(JSON.generate({})) }
-        end
-
-        # Load and parse the JSON file
-        file_data = File.read(abs_path)
-        @data = JSON.parse(file_data)
-
-        # Build up the repo list
-        @repo_list = []
-        if not @data.has_key?("repos") then
-            @data["repos"] = {}
-        else
-            @data["repos"].each do |repo|
-                @repo_list << Repository.new(repo["path"])
-            end
-        end
+class Repositry
+    def iniitalize(path)
+        @path = File.absolute_path(path)
     end
 
-    def repos()
-        @repo_list
-    end
-
-    def add_repo(path)
-        abs_path = File.absolute_path(path)
-        repo = false
-        Dir.entries(abs_path).each {|entry|
-            if File.directory?(File.join(abs_path,entry)) and entry == ".git" then
-                repo = true
-            end
-        }
-        if repo then
-            @repo_list << Repository.new(File.absolute_path(path))
-        else
-            raise "Not a valid Git repository"
+    def get_branch
+        branch = ""
+        Dir.chdir(@path) do
+            branch = `git rev-parse --abbrev-ref HEAD`
         end
+        return branch
     end
 
-    def dump()
-        # Write the repo list to disk
+    def get_digest
+        digest = ""
+        Dir.chdir(@path) do
+            digest = `git rev-parse HEAD`
+        end
+        return digest
     end
 end
 
-class Repository
-    attr_accessor :path
-    attr_accessor :thread
-    attr_accessor :old_digest
-    attr_accessor :repo_data
+def is_repository(path)
+    File.exists?(File.join(path, ".git"))
+end
 
-    def initialize(path)
-        @path = path
-
-        puts "Initializing repo at", path
-
-        abs_path = File.join(path, ".check")
-        if not File.exists?(abs_path) then
-            File.new(abs_path, File::CREAT|File::TRUNC|File::RDWR, 0644)
-
-            @repo_data = {}
-            @repo_data[:digest] = self.get_repo_digest()
-            File.open(abs_path, 'w') {|f| f.write @repo_data.to_yaml }
-
-            puts "created"
+def _find_repository_root(path, prev)
+    Dir.chdir(path) do
+        cwd = Dir.pwd
+        out = `git status 2>&1`
+        if out.include?("fatal: ")
+            return prev
         else
-            @repo_data = YAML::load_file(abs_path)
-            puts "loaded"
+            return _find_repository_root(File.expand_path("..", Dir.pwd), cwd)
         end
-
-        puts repo_data.to_s
     end
+end
 
-    def get_repo_digest()
-        files = Dir["#{path}/.git/**/*"].reject{|f| File.directory?(f)}
-        content = files.select{|f| f != ".check"}.map{|f| File.read(f)}.join
-        return Digest::SHA256.digest(content).to_s
+def repository_root(path)
+    root = path
+    Dir.chdir(path) do
+        root = _find_repository_root(Dir.pwd, File.absolute_path(path))
     end
+    return root
+end
 
-    def has_changed()
-        digest = self.get_repo_digest()
-        puts digest, @repo_data[:digest]
-        return digest != @repo_data[:digest]
-    end
-
-    def dump()
-        # Update the master and invoke dump on the master
-    end
+def absolute_path(path)
+    File.new(Dir.new(".").path).expand
 end
 
 class Checkpoint
-    def initialize(repo_path)
+    def initialize(path)
+        @abs_path = File.join(path, DEFAULT_FNAME)
+        if !File.exists?(@abs_path) then
+            File.new(@abs_path, File::CREAT|File::TRUNC|File::RDWR, 0644)
 
-    end
-
-    def start()
-
-    end
-
-    def end()
-
-    end
-end
-
-class Commit
-    attr_accessor :sentiment # double
-    attr_accessor :political # hash
-
-    attr_accessor :stats # hash as below
-    # {:total=>{:insertions=>0, :deletions=>13, :lines=>13, :files=>1},
-    # :files=>{"src/gitones.rb"=>{:insertions=>0, :deletions=>13}}}
-
-    def initialize(entry, stats)
-        @entry = entry
-        @stats = stats
-    end
-
-    def message
-        @entry.message
-    end
-
-    def author
-        @entry.author
-    end
-
-    def date
-        @entry.date
-    end
-
-    def additions
-        @stats[:total][:insertions]
-    end
-
-    def deletions
-        @stats[:total][:deletions]
-    end
-
-    def numberOfLinesChanged
-        @stats[:total][:lines]
-    end
-
-    def numberOfFilesTouched
-        @stats[:total][:files]
-    end
-
-end
-
-# Process.daemon(true)
-
-master = CheckpointMaster.new(DEFAULT_FNAME)
-thread = master.add_repo("..")
-
-# Run forever until told to stop
-puts "Starting daemon"
-repo_index = 0
-loop do
-    pid = Process.fork do
-        repo = master.repos[repo_index]
-        if repo.has_changed() then
-            puts "something changed here!"
+            @data = {}
+            @data["logs"] = []
+            File.open(@abs_path, 'w') {|f| f.write YAML::dump(@data) }
         end
     end
 
-    Process.waitpid(pid)
+    def start()
+        load()
+        puts "start!"
+        @data["logs"] << "START at TIME X"
+        store()
+    end
 
-    sleep(0.1)
+    def end()
+        load()
+        puts "end!"
+        @data["logs"] << "END at TIME X"
+        store()
+    end
+
+    def load()
+        @data = YAML::load_file(@abs_path)
+    end
+
+    def store()
+        puts "store!"
+        File.open(@abs_path, 'w+') {|f| f.write(YAML.dump(@data))}
+    end
 end
 
-# ARGV.each{|repo|
-#     fullpath = Pathname.new(repo)
-#     puts "Analyzing #{fullpath.realpath.to_s}"
-#
-#     # git = Git.open(repo, :log => Logger.new(STDOUT))
-#     git = Git.open(repo)
-#
-#     # Indexes by user, date, and file
-#     entriesByUser = {}
-#     entriesByDate = {}
-#     entriesByFile = {}
-#
-#     numEntries = git.log.size
-#     for index in 0..(numEntries - 1)
-#         entry = git.log[index]
-#
-#         user = entry.author.name
-#         date = entry.date.strftime("%-m-%-d-%Y") # - means no padding
-#         diff = git.diff(entry, git.log[index + 1])
-#         diffStats = diff.stats
-#         touchedFiles = diffStats[:files]
-#
-#         commit = Commit.new(entry, diffStats)
-#         # puts commit.message
-#         # puts commit.sentiment
-#         # puts commit.political
-#
-#         if entriesByUser[user] == nil
-#             entriesByUser[user] = []
-#         end
-#         entriesByUser[user] << commit
-#
-#         if entriesByDate[date] == nil
-#             entriesByDate[date] = []
-#         end
-#         entriesByDate[date] << commit
-#
-#         touchedFiles.each{|fileName, value|
-#             if entriesByFile[fileName] == nil
-#                 entriesByFile[fileName] = []
-#             end
-#             entriesByFile[fileName] << commit
-#         }
-#     end
-#
-#     # puts "Indexes..."
-#     # puts entriesByUser.to_s
-#     # puts entriesByDate.to_s
-#     # puts entriesByFile.to_s
-#
-#     # prepare the overall plot data
-#     fout = File.open("overall.csv", "w")
-#     entriesByDate.each{|data, commits|
-#         add = commits[0].stats[:total][:insertions]
-#         del = commits[0].stats[:total][:deletions]
-#         lines = commits[0].stats[:total][:lines]
-#         files = commits[0].stats[:total][:files]
-#         sentiment = commits[0].sentiment
-#         lib = commits[0].howLibertarian
-#
-#         csvcontents = [date.to_s, add, del, lines, files, sentiment, lib]
-#         csvline = csvcontents.join(",")
-#
-#         puts date
-#         fout.puts(csvline)
-#     }
-#     fout.close
-#
-#     # prepare the per-file plot data
-#     entriesByFile.each{|file, commits|
-#
-#         # TODO: canonical the file
-#
-#         fout = File.open(file.sub("/", "_").to_s + ".csv", "w")
-#
-#         commits.each{|commit|
-#             add = commit.stats[:total][:insertions]
-#             del = commit.stats[:total][:deletions]
-#             lines = commit.stats[:total][:lines]
-#             files = commit.stats[:total][:files]
-#             sentiment = commit.sentiment
-#             lib = commit.howLibertarian
-#
-#             csvcontents = [date.to_s, add, del, lines, files, sentiment, lib]
-#             csvline = csvcontents.join(",")
-#
-#             puts date
-#             fout.puts(csvline)
-#         }
-#
-#         fout.close
-#     }
-#
-#     # prepare the per-user plot data
-#     entriesByFile.each{|user, commits|
-#         fout = File.open(user.sub("/", "_").to_s + ".csv", "w")
-#
-#         commits.each{|commit|
-#             add = commit.stats[:total][:insertions]
-#             del = commit.stats[:total][:deletions]
-#             lines = commit.stats[:total][:lines]
-#             files = commit.stats[:total][:files]
-#             sentiment = commit.sentiment
-#             lib = commit.howLibertarian
-#
-#             csvcontents = [date.to_s, add, del, lines, files, sentiment, lib]
-#             csvline = csvcontents.join(",")
-#
-#             puts date
-#             fout.puts(csvline)
-#         }
-#
-#         fout.close
-#     }
-# }
+flags = {"start" => false, "end" => false}
+
+OptionParser.new do |opt|
+    opt.banner = "Usage: check [options]"
+    opt.on('-s', '--start') { |o| flags["start"] = true }
+    opt.on('-e', '--end') { |o| flags["end"] = true }
+end.parse!
+
+if ARGV.length == 0
+    puts opt.banner
+    exit(1)
+end
+
+is_repo = is_repository(".")
+abs_path = File.join(".", DEFAULT_FNAME)
+if !File.exists?(abs_path) then
+
+end
+
+root = repository_root(".")
+puts "Repository root: ", File.absolute_path(root)
+
+checkpoint = Checkpoint.new(root)
+
+if flags["start"]
+    checkpoint.start()
+end
+if flags["end"]
+    checkpoint.end()
+end
