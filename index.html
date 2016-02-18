@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>check by chris-wood</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-dark.css">
+    <script src="javascripts/scale.fix.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>check</h1>
+        <p>repository checkpoints</p>
+        <p class="view"><a href="https://github.com/chris-wood/check">View the Project on GitHub <small>chris-wood/check</small></a></p>
+        <ul>
+          <li><a href="https://github.com/chris-wood/check/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/chris-wood/check/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/chris-wood/check">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h1>
+<a id="check" class="anchor" href="#check" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>check</h1>
+
+<p>check is a program to help manage time and activity for git-based projects.    </p>
+
+<h1>
+<a id="workflow" class="anchor" href="#workflow" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Workflow</h1>
+
+<p>(Optional) Step 1: Start the daemon to monitor repositories</p>
+
+<pre><code>$ ruby checkd.rb &amp;
+</code></pre>
+
+<p>Step 2: Use the check tool</p>
+
+<pre><code>$ check -s # start a check point
+...
+$ check -e # end a check point and log it
+</code></pre>
+
+<p>Step 3: Work, work, work.</p>
+
+<p>Step 4: Query the check points for information about past work</p>
+
+<pre><code>$ check --stats --all
+&lt;display stats for all repos&gt;
+$ check --logs --all 
+&lt;display logs for all repos (sorted by time)
+$ check --todos 
+&lt;display TODOs for this repository&gt;
+$ check --todos
+&lt;display TODOs for all repositories&gt;
+</code></pre>
+
+<h1>
+<a id="configuration" class="anchor" href="#configuration" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Configuration</h1>
+
+<p>You need to set up a shell alias to capture your git workflow. </p>
+
+<pre><code>git-checkpoint() {
+    check -l "$1"
+    $1 
+}
+alias git=git-checkpoint
+</code></pre>
+
+<h1>
+<a id="internals" class="anchor" href="#internals" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Internals</h1>
+
+<p>Check is designed to work by recording "checkpoint" events and logging all
+user activity in between checkpoints. These events are collected into a 
+checkpoint file that is commited into the repository along with the 
+repository. The development activity lives alongside the code. </p>
+
+<p>Checkpoint files are simple logs of all checkpoint and user activity.
+They are structured according to the following schema.</p>
+
+<pre><code>Event        := CheckEvent | GitEvent
+CheckEvent   := CheckCommand Time RepoState
+Time         := Timestamp (ms)
+RepoState    := RepoHashDigest RepoBranch
+CheckCommand := Start | Stop
+GitEvent     := GitCommand (more...)
+GitCommand   := &lt;log of git command&gt;
+</code></pre>
+      </section>
+    </div>
+    <footer>
+      <p>Project maintained by <a href="https://github.com/chris-wood">chris-wood</a></p>
+      <p>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></p>
+    </footer>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+    
+  </body>
+</html>
