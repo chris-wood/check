@@ -1,3 +1,22 @@
 ---
-:digest: !binary |-
-  2uZ5GDYT3u3/T5GCmN0ixt6rolhjPWfJv5WBQLpmKDc=
+logs:
+- - LOG
+  - cb6f2ec4cda045e56667b641859be55894063674
+  - master
+  - '"'
+- - LOG
+  - cb6f2ec4cda045e56667b641859be55894063674
+  - master
+  - '''log'''
+- - LOG
+  - cb6f2ec4cda045e56667b641859be55894063674
+  - master
+  - '''log --name-only'''
+- - LOG
+  - cb6f2ec4cda045e56667b641859be55894063674
+  - master
+  - '''--log -name-only'''
+- - LOG
+  - cb6f2ec4cda045e56667b641859be55894063674
+  - master
+  - '''log -name-only'''
