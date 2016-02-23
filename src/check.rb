@@ -1,7 +1,9 @@
 require 'optparse'
 require 'yaml'
+require 'date'
 
 DEFAULT_FNAME = ".check"
+DEFAULT_CHECKPOINT_FNAME = "current_check"
 
 class Repository
     def initialize(path)
@@ -80,12 +82,13 @@ end
 class Checkpointer
     def initialize(path)
         @abs_path = File.join(path, DEFAULT_FNAME)
-        if !File.exists?(@abs_path) then
-            File.new(@abs_path, File::CREAT|File::TRUNC|File::RDWR, 0644)
+        @current_file = File.join(@abs_path, DEFAULT_CHECKPOINT_FNAME) 
+        create_dir_if_missing
+    end
 
-            @data = {}
-            @data["logs"] = []
-            File.open(@abs_path, 'w') {|f| f.write YAML::dump(@data) }
+    def create_dir_if_missing
+        if !Dir.exists?(@abs_path) then
+            Dir.new(@abs_path)
         end
     end
 
@@ -97,34 +100,72 @@ class Checkpointer
         end
     end
 
+    def is_active
+        File.exists?(File.join(@abs_path, DEFAULT_CHECKPOINT_FNAME))
+    end
+
+    def next_checkpoint
+        today = Date.today.strftime("%Y%m%d")
+        maxnum = 0
+        Dir.glob("check-#{today}-*").each do |f|
+            parts = f.split("-")
+            num = parts[-1].to_i
+            if num > maxnum then
+                max_num = num
+            end
+        end
+        maxnum = maxnum + 1
+
+        return "check-" + today.to_s + "-" + maxnum.to_s
+    end
+
     def start
-        load
-        if last_entry_type == "START" then
+        if is_active
             puts "You've already started a checkpoint. Time to work work work."
         else
+            create_checkpoint(next_checkpoint)
+            load
             @data["logs"] << ["START"] + CheckpointBoundary.new(@abs_path).snapshot
             store
         end
     end
 
     def end
-        load
-        @data["logs"] << ["END"] + CheckpointBoundary.new(@abs_path).snapshot
-        store
+        if is_active
+            puts "You are not in a checkpoint."
+        else
+            load
+            @data["logs"] << ["END"] + CheckpointBoundary.new(@abs_path).snapshot
+            store
+
+            File.delete(@current_file)
+        end
+    end
+
+    # TODO: move these creation/writing init functions to a separate method
+    def create_checkpoint(filename)
+        full_path = File.join(@abs_path, filename)
+        File.new(full_path, File::CREAT|File::TRUNC|File::RDWR, 0644)
+        @data = []
+        File.open(full_path, 'w') {|f| f.write YAML::dump(@data) }
+
+        check_file = File.join(@abs_path, DEFAULT_CHECKPOINT_FNAME)
+        File.new(check_file, File::CREAT|File::TRUNC|File::RDWR, 0644)
+        File.open(check_file, 'w') {|f| f.write(full_path) }
     end
 
     def log(cmd)
         load
-        @data["logs"] << ["LOG"] + CheckpointEntry.new(@abs_path, cmd).snapshot
+        @data << ["LOG"] + CheckpointEntry.new(@abs_path, cmd).snapshot
         store
     end
 
     def load
-        @data = YAML::load_file(@abs_path)
+        @data = YAML::load_file(@current_file)
     end
 
     def store
-        File.open(@abs_path, 'w') {|f| f.write(YAML.dump(@data))}
+        File.open(@current_file, 'w') {|f| f.write(YAML.dump(@data))}
     end
 end
 
@@ -139,12 +180,25 @@ end
 
 flags = {"start" => false, "end" => false, "log" => false}
 command = ""
+todo = ""
+todo_id = ""
 
 ARGV.options do |opt|
     opt.banner = "Usage: check [options]"
     
     opt.on('-s', '--start', "Start a checkpoint") { |o| flags["start"] = true }
     opt.on('-e', '--end', "End a checkpoint") { |o| flags["end"] = true }
+    opt.on('-t', '--todo=task', String, "Add a TODO item") { |task| 
+        flags["todo"] = true 
+        todo = task
+    }
+    opt.on('-l', '--list', String, "List the existing TODOs") { |o| 
+        flags["list"] = true
+    }
+    opt.on('-f', '--finish=id', String, "Finish the specified TODO") { |id| 
+        flags["finish"] = true
+        todo_id = id
+    }
     opt.on('-l', '--log=cmd', String, "Enter a log activity") { |cmd| 
         flags["log"] = true
         command = cmd
@@ -155,7 +209,7 @@ end
 is_repo = is_repository(".")
 abs_path = File.join(".", DEFAULT_FNAME)
 if !File.exists?(abs_path) then
-
+    # TODO: create it
 end
 
 root = repository_root(".")
