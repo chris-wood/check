@@ -81,6 +81,7 @@ end
 
 class Checkpointer
     def initialize(path)
+        @path = path
         @abs_path = File.join(path, DEFAULT_FNAME)
         @current_file = File.join(@abs_path, DEFAULT_CHECKPOINT_FNAME) 
         create_dir_if_missing
@@ -88,15 +89,10 @@ class Checkpointer
 
     def create_dir_if_missing
         if !Dir.exists?(@abs_path) then
-            Dir.new(@abs_path)
-        end
-    end
-
-    def last_entry_type
-        if @data["logs"].length > 0 then
-            @data["logs"][-1][0]
-        else
-            ""
+            Dir.chdir(@path) do
+                puts Dir.pwd
+                Dir.mkdir(DEFAULT_FNAME)
+            end
         end
     end
 
@@ -105,13 +101,19 @@ class Checkpointer
     end
 
     def next_checkpoint
-        today = Date.today.strftime("%Y%m%d")
+        today = Date.today.strftime("%Y%m%d").to_s
         maxnum = 0
-        Dir.glob("check-#{today}-*").each do |f|
-            parts = f.split("-")
-            num = parts[-1].to_i
-            if num > maxnum then
-                max_num = num
+        Dir.chdir(@abs_path) do 
+            puts "in #{Dir.pwd} looking for check-#{today}"
+            Dir['*'].each do |f|
+                if f.to_s.include? today then
+                    parts = f.split("-")
+                    num = parts[-1].to_i
+                    if num > maxnum then
+                        maxnum = num
+                    end
+                end
+                puts "checked #{f} and maxnum is #{maxnum.to_s}"
             end
         end
         maxnum = maxnum + 1
@@ -125,17 +127,17 @@ class Checkpointer
         else
             create_checkpoint(next_checkpoint)
             load
-            @data["logs"] << ["START"] + CheckpointBoundary.new(@abs_path).snapshot
+            @data << ["START"] + CheckpointBoundary.new(@abs_path).snapshot
             store
         end
     end
 
     def end
-        if is_active
+        if not is_active
             puts "You are not in a checkpoint."
         else
             load
-            @data["logs"] << ["END"] + CheckpointBoundary.new(@abs_path).snapshot
+            @data << ["END"] + CheckpointBoundary.new(@abs_path).snapshot
             store
 
             File.delete(@current_file)
@@ -149,9 +151,9 @@ class Checkpointer
         @data = []
         File.open(full_path, 'w') {|f| f.write YAML::dump(@data) }
 
-        check_file = File.join(@abs_path, DEFAULT_CHECKPOINT_FNAME)
-        File.new(check_file, File::CREAT|File::TRUNC|File::RDWR, 0644)
-        File.open(check_file, 'w') {|f| f.write(full_path) }
+        # TODO: we should be storing relative paths, not absolute paths
+        File.new(@current_file, File::CREAT|File::TRUNC|File::RDWR, 0644)
+        File.open(@current_file, 'w') {|f| f.write(full_path) }
     end
 
     def log(cmd)
@@ -160,12 +162,21 @@ class Checkpointer
         store
     end
 
+    def current_file_name
+        current = File.open(@current_file, "r")
+        full_path = current.read.to_s
+        return full_path
+    end
+
     def load
-        @data = YAML::load_file(@current_file)
+        full_path = current_file_name
+        puts "Loading #{full_path} to append"
+        @data = YAML::load_file(full_path)
     end
 
     def store
-        File.open(@current_file, 'w') {|f| f.write(YAML.dump(@data))}
+        full_path = current_file_name
+        File.open(full_path, 'w') {|f| f.write(YAML.dump(@data))}
     end
 end
 
