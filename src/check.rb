@@ -2,7 +2,10 @@ require 'optparse'
 require 'yaml'
 require 'date'
 
+require 'todo-txt'
+
 DEFAULT_FNAME = ".check"
+DEFAULT_TASK_FNAME = ".todo"
 DEFAULT_CHECKPOINT_FNAME = "current_check"
 
 class Repository
@@ -76,6 +79,24 @@ class CheckpointEntry
 
     def snapshot
         @boundary.snapshot + [@cmd]
+    end
+end
+
+class TaskManager
+    def initialize(path)
+        @path = path
+        @check_path = File.join(path, DEFAULT_FNAME)
+        @abs_path = File.join(@check_path, DEFAULT_TASK_FNAME)
+
+        if !File.exists?(@abs_path) then
+            File.new(@abs_path, File::CREAT|File::TRUNC|File::RDWR, 0644)
+            File.open(@abs_path, 'w') {|f| f.write "" }
+        end
+    end
+    
+    def execute(cmd)
+        puts "EXECUTE #{cmd}"
+        puts `TODO_DIR=#{@check_path} ./todo/todo.sh #{cmd}`
     end
 end
 
@@ -236,5 +257,9 @@ if flags["end"]
 end
 if flags["log"] and command.length > 0
     checkpoint.log(command)
+end
+if flags["todo"] and todo.length > 0
+    tasker = TaskManager.new(root)
+    tasker.execute(todo)
 end
 
