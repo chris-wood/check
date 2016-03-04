@@ -8,4 +8,5 @@ decorate()
     return $ret'
 
 alias check="ruby `pwd`/src/check.rb"
-gc() { args="'$*'"; check -l $args; git "$@"; }
+g() { args="'$*'"; check -l $args; git "$@"; }
+

@@ -1,3 +1,4 @@
 1. Implement general log store entry storage
 2. Test directory and file creation
-3. Add TODO support
+3. Add TODO support (based on standard console TODO programs)
+

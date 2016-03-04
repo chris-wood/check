@@ -21,18 +21,42 @@ Step 4: Query the check points for information about past work
 ```
 $ check --stats --all
 <display stats for all repos>
-$ check --logs --all 
+$ check --logs --all
 <display logs for all repos (sorted by time)
 $ check --todos 
 <display TODOs for this repository>
-$ check --todos
-<display TODOs for all repositories>
 ```
+
+# Dependencies
+
+- todo.txt CLI (https://github.com/ginatrapani/todo.txt-cli/releases)
+- git_status ruby gem (https://github.com/tomgi/git_stats)
+- sparkr (gem install sparkr) (http://trivelop.de/sparkr/)
+    - Sparkr.sparkline([0,1,2,3,4,5] * 100)
+- ascii_charts (https://github.com/benlund/ascii_charts) (gem install ascii_charts)
+
+# Stats
+
+Sparkline generation
+
+Check reports the following stats for your measurement
+
+- Total commits today
+- Changes today (files touched and changes in each)
+- Commits over last 7 days
+- Changes over last 7 days (ditto)
+- Current commit streak
+- Development velocity (changes over time)
+- Time spent per branch (thrashing)
+- Time between commits
+- Identify roadblocks (files continue to work on)
+- Integration with GitStats (https://github.com/tomgi/git_stats) -> for pretty and comprehensive git stat generation
 
 # Configuration
 
 You need to set up a shell alias to capture your git workflow. 
 
+TODO: update this
 ```
 git-checkpoint() {
     check -l "$1"
