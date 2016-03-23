@@ -93,7 +93,7 @@ class TaskManager
             File.open(@abs_path, 'w') {|f| f.write "" }
         end
     end
-    
+
     def execute(cmd)
         puts "EXECUTE #{cmd}"
         puts `TODO_DIR=#{@check_path} ./todo/todo.sh #{cmd}`
@@ -104,7 +104,7 @@ class Checkpointer
     def initialize(path)
         @path = path
         @abs_path = File.join(path, DEFAULT_FNAME)
-        @current_file = File.join(@abs_path, DEFAULT_CHECKPOINT_FNAME) 
+        @current_file = File.join(@abs_path, DEFAULT_CHECKPOINT_FNAME)
         create_dir_if_missing
     end
 
@@ -124,7 +124,7 @@ class Checkpointer
     def next_checkpoint
         today = Date.today.strftime("%Y%m%d").to_s
         maxnum = 0
-        Dir.chdir(@abs_path) do 
+        Dir.chdir(@abs_path) do
             puts "in #{Dir.pwd} looking for check-#{today}"
             Dir['*'].each do |f|
                 if f.to_s.include? today then
@@ -144,7 +144,7 @@ class Checkpointer
 
     def start
         if is_active
-            puts "You've already started a checkpoint. Time to work work work."
+            puts "You've already started a checkpoint."
         else
             create_checkpoint(next_checkpoint)
             load
@@ -155,7 +155,7 @@ class Checkpointer
 
     def end
         if not is_active
-            puts "You are not in a checkpoint."
+            puts "You are not in an active checkpoint."
         else
             load
             @data << ["END"] + CheckpointBoundary.new(@abs_path).snapshot
@@ -217,21 +217,21 @@ todo_id = ""
 
 ARGV.options do |opt|
     opt.banner = "Usage: check [options]"
-    
+
     opt.on('-s', '--start', "Start a checkpoint") { |o| flags["start"] = true }
     opt.on('-e', '--end', "End a checkpoint") { |o| flags["end"] = true }
-    opt.on('-t', '--todo=task', String, "Add a TODO item") { |task| 
-        flags["todo"] = true 
+    opt.on('-t', '--todo=task', String, "Add a TODO item") { |task|
+        flags["todo"] = true
         todo = task
     }
-    opt.on('-l', '--list', String, "List the existing TODOs") { |o| 
+    opt.on('-l', '--list', String, "List the existing TODOs") { |o|
         flags["list"] = true
     }
-    opt.on('-f', '--finish=id', String, "Finish the specified TODO") { |id| 
+    opt.on('-f', '--finish=id', String, "Finish the specified TODO") { |id|
         flags["finish"] = true
         todo_id = id
     }
-    opt.on('-l', '--log=cmd', String, "Enter a log activity") { |cmd| 
+    opt.on('-l', '--log=cmd', String, "Enter a log activity") { |cmd|
         flags["log"] = true
         command = cmd
     }
@@ -262,4 +262,3 @@ if flags["todo"] and todo.length > 0
     tasker = TaskManager.new(root)
     tasker.execute(todo)
 end
-
