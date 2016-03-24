@@ -6,7 +6,8 @@ Gem::Specification.new do |s|
     s.description = "Checkpointer"
     s.authors = ["caw"]
     s.email = "christopherwood07@gmail.com"
-    s.files = ["lib/check.rb", "lib/todo/todo.cfg", "lib/todo/todo.sh", "lib/todo/todo_completion"]
+    s.executables = ["check"]
+    s.files = ["lib/check.rb"]
     s.homepage = "https://www.github.com/chris-wood/check"
     s.license = "MIT"
 end
