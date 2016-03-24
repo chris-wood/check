@@ -2,12 +2,6 @@ require 'optparse'
 require 'yaml'
 require 'date'
 
-require 'todo-txt'
-
-DEFAULT_FNAME = ".check"
-DEFAULT_TASK_FNAME = ".todo"
-DEFAULT_CHECKPOINT_FNAME = "current_check"
-
 class Repository
     def initialize(path)
         @path = File.absolute_path(path)
@@ -28,30 +22,6 @@ class Repository
         end
         digest.strip()
     end
-end
-
-def is_repository(path)
-    File.exists?(File.join(path, ".git"))
-end
-
-def repository_root(path)
-    def _find_repository_root(path, prev)
-        Dir.chdir(path) do
-            cwd = Dir.pwd
-            out = `git status 2>&1`
-            if out.include?("fatal: ")
-                return prev
-            else
-                return _find_repository_root(File.expand_path("..", Dir.pwd), cwd)
-            end
-        end
-    end
-
-    root = path
-    Dir.chdir(path) do
-        root = _find_repository_root(Dir.pwd, File.absolute_path(path))
-    end
-    return root
 end
 
 def absolute_path(path)
@@ -83,10 +53,10 @@ class CheckpointEntry
 end
 
 class TaskManager
-    def initialize(path)
-        @path = path
-        @check_path = File.join(path, DEFAULT_FNAME)
-        @abs_path = File.join(@check_path, DEFAULT_TASK_FNAME)
+    def initialize(root, directory, task_name)
+        @path = root
+        @check_path = File.join(root, directory)
+        @abs_path = File.join(@check_path, task_name)
 
         if !File.exists?(@abs_path) then
             File.new(@abs_path, File::CREAT|File::TRUNC|File::RDWR, 0644)
@@ -94,38 +64,43 @@ class TaskManager
         end
     end
 
-    def execute(cmd)
-        puts "EXECUTE #{cmd}"
-        puts `TODO_DIR=#{@check_path} ./todo/todo.sh #{cmd}`
+    def execute_list
+        puts `TODO_DIR=#{@check_path} todo.sh list`
+    end
+
+    def execute_add(cmd)
+        puts `TODO_DIR=#{@check_path} todo.sh add #{cmd}`
+    end
+
+    def execute_do(cmd)
+        puts `TODO_DIR=#{@check_path} todo.sh do #{cmd}`
     end
 end
 
 class Checkpointer
-    def initialize(path)
-        @path = path
-        @abs_path = File.join(path, DEFAULT_FNAME)
-        @current_file = File.join(@abs_path, DEFAULT_CHECKPOINT_FNAME)
+    def initialize(root, directory, checkpoint_name)
+        @path = root
+        @abs_path = File.join(root, directory)
+        @current_file = File.join(@abs_path, checkpoint_name)
         create_dir_if_missing
     end
 
     def create_dir_if_missing
         if !Dir.exists?(@abs_path) then
             Dir.chdir(@path) do
-                puts Dir.pwd
                 Dir.mkdir(DEFAULT_FNAME)
             end
         end
     end
 
     def is_active
-        File.exists?(File.join(@abs_path, DEFAULT_CHECKPOINT_FNAME))
+        File.exists?(@current_file)
     end
 
     def next_checkpoint
         today = Date.today.strftime("%Y%m%d").to_s
         maxnum = 0
         Dir.chdir(@abs_path) do
-            puts "in #{Dir.pwd} looking for check-#{today}"
             Dir['*'].each do |f|
                 if f.to_s.include? today then
                     parts = f.split("-")
@@ -134,7 +109,6 @@ class Checkpointer
                         maxnum = num
                     end
                 end
-                puts "checked #{f} and maxnum is #{maxnum.to_s}"
             end
         end
         maxnum = maxnum + 1
@@ -191,7 +165,6 @@ class Checkpointer
 
     def load
         full_path = current_file_name
-        puts "Loading #{full_path} to append"
         @data = YAML::load_file(full_path)
     end
 
@@ -199,66 +172,4 @@ class Checkpointer
         full_path = current_file_name
         File.open(full_path, 'w') {|f| f.write(YAML.dump(@data))}
     end
-end
-
-def usage
-    puts "print something friendly"
-end
-
-if ARGV.length == 0
-    usage
-    exit(1)
-end
-
-flags = {"start" => false, "end" => false, "log" => false}
-command = ""
-todo = ""
-todo_id = ""
-
-ARGV.options do |opt|
-    opt.banner = "Usage: check [options]"
-
-    opt.on('-s', '--start', "Start a checkpoint") { |o| flags["start"] = true }
-    opt.on('-e', '--end', "End a checkpoint") { |o| flags["end"] = true }
-    opt.on('-t', '--todo=task', String, "Add a TODO item") { |task|
-        flags["todo"] = true
-        todo = task
-    }
-    opt.on('-l', '--list', String, "List the existing TODOs") { |o|
-        flags["list"] = true
-    }
-    opt.on('-f', '--finish=id', String, "Finish the specified TODO") { |id|
-        flags["finish"] = true
-        todo_id = id
-    }
-    opt.on('-l', '--log=cmd', String, "Enter a log activity") { |cmd|
-        flags["log"] = true
-        command = cmd
-    }
-    opt.parse!
-end
-
-is_repo = is_repository(".")
-abs_path = File.join(".", DEFAULT_FNAME)
-if !File.exists?(abs_path) then
-    # TODO: create it
-end
-
-root = repository_root(".")
-puts "Repository root: ", File.absolute_path(root)
-
-checkpoint = Checkpointer.new(root)
-
-if flags["start"]
-    checkpoint.start
-end
-if flags["end"]
-    checkpoint.end
-end
-if flags["log"] and command.length > 0
-    checkpoint.log(command)
-end
-if flags["todo"] and todo.length > 0
-    tasker = TaskManager.new(root)
-    tasker.execute(todo)
 end

@@ -1,0 +1,98 @@
+require 'optparse'
+require 'yaml'
+require 'date'
+require 'check'
+
+DEFAULT_FNAME = ".check"
+DEFAULT_TASK_FNAME = ".todo"
+DEFAULT_CHECKPOINT_FNAME = "current_check"
+
+def is_repository(path)
+    File.exists?(File.join(path, ".git"))
+end
+
+def repository_root(path)
+    def _find_repository_root(path, prev)
+        Dir.chdir(path) do
+            cwd = Dir.pwd
+            out = `git status 2>&1`
+            if out.include?("fatal: ")
+                return prev
+            else
+                return _find_repository_root(File.expand_path("..", Dir.pwd), cwd)
+            end
+        end
+    end
+
+    root = path
+    Dir.chdir(path) do
+        root = _find_repository_root(Dir.pwd, File.absolute_path(path))
+    end
+    return root
+end
+
+def usage
+    puts "print something friendly"
+end
+
+if ARGV.length == 0
+    usage
+    exit(1)
+end
+
+flags = {"start" => false, "end" => false, "log" => false}
+command = ""
+todo = ""
+todo_id = ""
+
+ARGV.options do |opt|
+    opt.banner = "Usage: check [options]"
+
+    opt.on('-s', '--start', "Start a checkpoint") { |o| flags["start"] = true }
+    opt.on('-e', '--end', "End a checkpoint") { |o| flags["end"] = true }
+    opt.on('-a', '--add=task', String, "Add a TODO item") { |task|
+        flags["add"] = true
+        todo = task
+    }
+    opt.on('-t', '--tasks', String, "List the existing TODOs") { |o|
+        flags["list"] = true
+    }
+    opt.on('-d', '--do=id', String, "Do (finish) the specified TODO") { |id|
+        flags["do"] = true
+        todo_id = id
+    }
+    opt.on('-l', '--log=cmd', String, "Enter a log activity") { |cmd|
+        flags["log"] = true
+        command = cmd
+    }
+    opt.parse!
+end
+
+is_repo = is_repository(".")
+abs_path = File.join(".", DEFAULT_FNAME)
+if !File.exists?(abs_path) then
+    # TODO: create it
+end
+
+root = repository_root(".")
+checkpoint = Checkpointer.new(root, DEFAULT_FNAME, DEFAULT_CHECKPOINT_FNAME)
+tasker = TaskManager.new(root, DEFAULT_FNAME, DEFAULT_TASK_FNAME)
+
+if flags["start"]
+    checkpoint.start
+end
+if flags["end"]
+    checkpoint.end
+end
+if flags["log"] and command.length > 0
+    checkpoint.log(command)
+end
+if flags["add"] and todo.length > 0
+    tasker.execute_add(todo)
+end
+if flags["list"]
+    tasker.execute_list()
+end
+if flags["do"] and todo_id.length > 0
+    tasker.execute_do(todo_id)
+end
